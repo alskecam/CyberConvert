@@ -9,7 +9,7 @@ from pathlib import Path
 from PIL import Image
 import sys
 
-def convert_image(source, destination, format_ext=None):
+def convert_image(source, destination, format_ext=None, compress=None):
     try:
         if source.is_dir():
             print(f"Error: {source} is a directory, not a file.", file=sys.stderr)
@@ -38,7 +38,12 @@ def convert_image(source, destination, format_ext=None):
             # Ensure destination directory exists
             destination.parent.mkdir(parents=True, exist_ok=True)
 
-            img.save(destination, format=save_format if save_format != "PNG8" else "PNG")
+            save_params = {}
+            if compress is not None:
+                if save_format in ("JPEG", "JPG", "WEBP"):
+                    save_params["quality"] = compress
+
+            img.save(destination, format=save_format if save_format != "PNG8" else "PNG", **save_params)
             print(f"Successfully converted {source} to {destination} ({format_ext or save_format})")
             return True
     except Exception as e:
@@ -58,8 +63,13 @@ def main():
     parser.add_argument("source", help="Path to the source image or directory")
     parser.add_argument("destination", help="Path to the destination image or directory")
     parser.add_argument("--format", choices=["jpeg", "webp", "png8", "png"], help="Output format")
+    parser.add_argument("--compress", type=int, help="Compression value (10-100)")
 
     args = parser.parse_args()
+
+    if args.compress is not None and (args.compress < 10 or args.compress > 100):
+        print("Error: Compression value must be between 10 and 100", file=sys.stderr)
+        sys.exit(1)
 
     source_path = Path(args.source)
     dest_path = Path(args.destination)
@@ -82,7 +92,7 @@ def main():
         for item in files:
             ext = get_output_ext(item, args.format)
             output_item = dest_path / (item.stem + ext)
-            if convert_image(item, output_item, args.format):
+            if convert_image(item, output_item, args.format, args.compress):
                 success_count += 1
 
         print(f"Finished. Successfully converted {success_count}/{len(files)} files.")
@@ -95,7 +105,7 @@ def main():
              ext = get_output_ext(source_path, args.format)
              actual_dest = dest_path / (source_path.stem + ext)
 
-        if not convert_image(source_path, actual_dest, args.format):
+        if not convert_image(source_path, actual_dest, args.format, args.compress):
             sys.exit(1)
 
 if __name__ == "__main__":
