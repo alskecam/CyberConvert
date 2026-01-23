@@ -64,6 +64,7 @@ def main():
     parser.add_argument("destination", help="Path to the destination image or directory")
     parser.add_argument("--format", choices=["jpeg", "webp", "png8", "png"], help="Output format")
     parser.add_argument("--compress", type=int, help="Compression value (10-100)")
+    parser.add_argument("--psdconv", action="store_true", help="Enable PSD conversion")
 
     args = parser.parse_args()
 
@@ -90,6 +91,10 @@ def main():
 
         success_count = 0
         for item in files:
+            if item.suffix.lower() == ".psd":
+                if not args.psdconv or not args.format:
+                    continue
+
             ext = get_output_ext(item, args.format)
             output_item = dest_path / (item.stem + ext)
             if convert_image(item, output_item, args.format, args.compress):
@@ -100,6 +105,14 @@ def main():
             sys.exit(1)
     else:
         # Source is a file
+        if source_path.suffix.lower() == ".psd":
+            if not args.psdconv:
+                print("Error: PSD conversion is not enabled. Use --psdconv to enable it.", file=sys.stderr)
+                sys.exit(1)
+            if not args.format:
+                print("Error: Format must be specified for PSD conversion.", file=sys.stderr)
+                sys.exit(1)
+
         actual_dest = dest_path
         if dest_path.is_dir():
              ext = get_output_ext(source_path, args.format)
