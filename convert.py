@@ -9,13 +9,18 @@ from pathlib import Path
 from PIL import Image
 import sys
 
-def convert_image(source, destination, format_ext=None, compress=None):
+def convert_image(source, destination, format_ext=None, compress=None, width=None):
     try:
         if source.is_dir():
             print(f"Error: {source} is a directory, not a file.", file=sys.stderr)
             return False
 
         with Image.open(source) as img:
+            if width and width < img.width:
+                new_height = int(img.height * width / img.width)
+                resample_filter = getattr(Image, 'Resampling', Image).LANCZOS
+                img = img.resize((width, new_height), resample_filter)
+
             if format_ext == "png8":
                 # Convert to 8-bit palette
                 img = img.convert("P", palette=Image.ADAPTIVE, colors=256)
@@ -64,12 +69,17 @@ def main():
     parser.add_argument("destination", help="Path to the destination image or directory")
     parser.add_argument("--format", choices=["jpeg", "webp", "png8", "png"], help="Output format")
     parser.add_argument("--compress", type=int, help="Compression value (10-100)")
+    parser.add_argument("--width", type=int, help="Maximum width of the output image")
     parser.add_argument("--psdconv", action="store_true", help="Enable PSD conversion")
 
     args = parser.parse_args()
 
     if args.compress is not None and (args.compress < 10 or args.compress > 100):
         print("Error: Compression value must be between 10 and 100", file=sys.stderr)
+        sys.exit(1)
+
+    if args.width is not None and args.width <= 0:
+        print("Error: Width value must be greater than 0", file=sys.stderr)
         sys.exit(1)
 
     source_path = Path(args.source)
@@ -97,7 +107,7 @@ def main():
 
             ext = get_output_ext(item, args.format)
             output_item = dest_path / (item.stem + ext)
-            if convert_image(item, output_item, args.format, args.compress):
+            if convert_image(item, output_item, args.format, args.compress, args.width):
                 success_count += 1
 
         print(f"Finished. Successfully converted {success_count}/{len(files)} files.")
@@ -118,7 +128,7 @@ def main():
              ext = get_output_ext(source_path, args.format)
              actual_dest = dest_path / (source_path.stem + ext)
 
-        if not convert_image(source_path, actual_dest, args.format, args.compress):
+        if not convert_image(source_path, actual_dest, args.format, args.compress, args.width):
             sys.exit(1)
 
 if __name__ == "__main__":
